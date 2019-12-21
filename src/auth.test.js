@@ -1,27 +1,32 @@
-const { getPathAndPort } = require('./auth')
+const { validateForLocalUse } = require('./auth')
 
 describe('Auth', () => {
+  // negative cases: tightly coupled to error message: boo!
+  const ok = { client_id: 'X', client_secret: 'X' } // shorthand for basic props
+  const missingError = { error: 'Missing at least one required parameter : `{web:{client_id,client_secret,redirect_uris:[]`' }
   test.each([
-    [['http://127.0.0.1:8080/auth/google/callback'], { path: '/auth/google/callback', port: 8080 }],
-    [['http://127.0.0.1:3000/someotherpath'], { path: '/someotherpath', port: 3000 }]
-  ])('.getPathAndPort(%j)', (redirectUris, expected) => {
-    const keys = { web: { redirect_uris: redirectUris } }
-    expect(getPathAndPort(keys)).toEqual(expected)
+    [null, missingError],
+    [{}, missingError],
+    [{ web: {} }, missingError],
+    [{ web: { client_id: '', client_secret: '' } }, missingError],
+    [{ web: { client_id: '', redirect_uris: '' } }, missingError],
+    [{ web: { client_secret: '', redirect_uris: '' } }, missingError],
+    [{ web: { ...ok, redirect_uris: {} } }, { error: '`keys.web.redirect_uris` is not an Array' }],
+    [{ web: { ...ok, redirect_uris: [] } }, { error: 'Missing `keys.web.redirect_uris[]` entries' }],
+    [{ web: { ...ok, redirect_uris: ['https://some.com'] } }, { error: '`keys.web.redirect_uris[]` should have at least 1 entry with `http://127.0.0.1` prefix' }],
+    [{ web: { ...ok, redirect_uris: ['http://localhost/path'] } }, { error: '`keys.web.redirect_uris[]` should have at least 1 entry with `http://127.0.0.1` prefix' }],
+    [{ web: { ...ok, redirect_uris: ['http://127.0.0.1:NotAPortNumberN/path'] } }, { error: '`keys.web.redirect_uris[]` error:TypeError [ERR_INVALID_URL]: Invalid URL: http://127.0.0.1:NotAPortNumberN/path' }]
+  ])('.validateForLocalUse(%j)', (keys, expected) => {
+    expect(validateForLocalUse(keys)).toEqual(expected)
   })
 
-  // negative cases: tightly couple to error message: boo!
   test.each([
-    [null, { error: 'Missing `keys` parameter' }],
-    [{}, { error: 'Missing `keys.web` parameter' }],
-    [{ web: {} }, { error: 'Missing `keys.web.redirect_uris` parameter' }],
-    [{ web: { redirect_uris: {} } }, { error: '`keys.web.redirect_uris` is not an Array' }],
-    [{ web: { redirect_uris: [] } }, { error: 'Missing `keys.web.redirect_uris[]` entries' }],
-    [{ web: { redirect_uris: ['https://some.com'] } }, { error: '`keys.web.redirect_uris[]` should have eactly 1 entry with `http://127.0.0.1` prefix' }],
-    [{ web: { redirect_uris: ['http://localhost/path'] } }, { error: '`keys.web.redirect_uris[]` should have eactly 1 entry with `http://127.0.0.1` prefix' }],
-    [{ web: { redirect_uris: ['http://127.0.0.1/path', 'http://127.0.0.1/otherpath'] } }, { error: '`keys.web.redirect_uris[]` should have eactly 1 entry with `http://127.0.0.1` prefix' }],
-    [{ web: { redirect_uris: ['http://127.0.0.1:NotAPortNumberN/path'] } }, { error: '`keys.web.redirect_uris[]` error:TypeError [ERR_INVALID_URL]: Invalid URL: http://127.0.0.1:NotAPortNumberN/path' }],
-    [null, { error: 'Missing `keys` parameter' }]
-  ])('.getPathAndPort(%j)', (keys, expected) => {
-    expect(getPathAndPort(keys)).toEqual(expected)
+    [['http://127.0.0.1:8080/auth/google/callback'], { callbackPath: '/auth/google/callback', localPort: 8080 }],
+    [['http://127.0.0.1:3000/someotherpath'], { callbackPath: '/someotherpath', localPort: 3000 }],
+    [['http://127.0.0.1/pathafterNoPort'], { error: '`keys.web.redirect_uris[]` error:Error: http port should be explicit for local url' }],
+    [['http://127.0.0.1:8888/firstpath', 'http://127.0.0.1:8765/otherpath'], { callbackPath: '/firstpath', localPort: 8888 }]
+  ])('.validateForLocalUse(%j)', (redirectUris, expected) => {
+    const keys = { web: { ...ok, redirect_uris: redirectUris } }
+    expect(validateForLocalUse(keys)).toEqual(expected)
   })
 })
