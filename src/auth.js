@@ -54,9 +54,9 @@ async function getNewTokens (keys, scope) {
   )
 
   const code = await getAuthorizationCode(oAuth2Client, callbackPath, localPort, scope)
-  console.debug(`Got the authorization code: ${code}`)
+  // console.debug(`Got the authorization code: ${code}`)
   const tokens = await getTokenFromAuthorizationCode(oAuth2Client, code)
-  console.debug('Got new tokens', { tokens })
+  // console.debug('Got new tokens', { tokens })
 
   oAuth2Client.setCredentials(tokens)
   const tokenInfo = await oAuth2Client.getTokenInfo(
@@ -115,23 +115,12 @@ function validateForLocalUse (keys) {
     return { error: '`keys.web.redirect_uris[]` ' + `error:${err}` }
   }
 }
+
 // Create a new OAuth2Client, and go through the OAuth2 content workflow.
 async function getTokenFromAuthorizationCode (oAuth2Client, code) {
-  // This is where I might persist tokens for re-use
-  oAuth2Client.on('tokens', (tokens) => {
-    console.log('tokens event:', tokens)
-    // if (tokens.refresh_token) {
-    //   // store the refresh_token in my database!
-    //   console.log('tokens event:refresh_token', tokens.refresh_token)
-    // }
-    // console.log('tokens event:access_token', tokens.access_token)
-  })
-
   const r = await oAuth2Client.getToken(code)
   // Make sure to set the credentials on the OAuth2 client.
-  console.debug({ r })
-  // console.info('Tokens acquired.')
-  // oAuth2Client.setCredentials(r.tokens)
+  // console.debug({ r })
   return (r.tokens)
 }
 
@@ -154,11 +143,9 @@ async function getAuthorizationCode (oAuth2Client, callbackPath, localPort, scop
           if (callbackPath !== incomingURL.pathname) {
             console.warn(`Incoming url path: ${incomingURL.pathname} was expected to match redirect_uris[] path: ${callbackPath}}`)
           }
-          const qs = incomingURL.searchParams
-          console.debug({ qs })
 
+          const qs = incomingURL.searchParams
           const code = qs.get('code')
-          console.log(`Code is ${code}`)
 
           if (!code) {
             throw new Error('Code not found in callback, return to console')
