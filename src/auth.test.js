@@ -3,7 +3,7 @@ const { validateForLocalUse } = require('./auth')
 describe('Auth', () => {
   // negative cases: tightly coupled to error message: boo!
   const ok = { client_id: 'X', client_secret: 'X' } // shorthand for basic props
-  const missingError = { error: 'Missing at least one required parameter : `{web:{client_id,client_secret,redirect_uris:[]`' }
+  const missingError = { error: 'Missing at least one required parameter : `{web:{client_id,client_secret,redirect_uris:[]}}`' }
   test.each([
     [null, missingError],
     [{}, missingError],
@@ -21,10 +21,10 @@ describe('Auth', () => {
   })
 
   test.each([
-    [['http://127.0.0.1:8080/auth/google/callback'], { callbackPath: '/auth/google/callback', localPort: 8080 }],
-    [['http://127.0.0.1:3000/someotherpath'], { callbackPath: '/someotherpath', localPort: 3000 }],
-    [['http://127.0.0.1/pathafterNoPort'], { error: '`keys.web.redirect_uris[]` error:Error: http port should be explicit for local url' }],
-    [['http://127.0.0.1:8888/firstpath', 'http://127.0.0.1:8765/otherpath'], { callbackPath: '/firstpath', localPort: 8888 }]
+    [['http://127.0.0.1:8080/auth/google/callback'], { callbackPath: '/auth/google/callback', localPort: 8080, redirectUri: 'http://127.0.0.1:8080/auth/google/callback' }],
+    [['http://127.0.0.1:3000/someotherpath'], { callbackPath: '/someotherpath', localPort: 3000, redirectUri: 'http://127.0.0.1:3000/someotherpath' }],
+    [['http://127.0.0.1/pathafterNoPort'], { error: '`keys.web.redirect_uris[]` error:Error: http port should be explicit for local redirect URI' }],
+    [['http://127.0.0.1:8888/firstpath', 'http://127.0.0.1:8765/otherpath'], { callbackPath: '/firstpath', localPort: 8888, redirectUri: 'http://127.0.0.1:8888/firstpath' }]
   ])('.validateForLocalUse(%j)', (redirectUris, expected) => {
     const keys = { web: { ...ok, redirect_uris: redirectUris } }
     expect(validateForLocalUse(keys)).toEqual(expected)

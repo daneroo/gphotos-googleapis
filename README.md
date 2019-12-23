@@ -4,9 +4,13 @@
 
 ## TODO
 
-- refactor cred dependencies (callback path/port in auth.js)
-- persist refresh token
-- don't launch server unless required
+- Document provisioning App Credentials
+- Remove a level from `oauth2.keys.json`
+- Implement refreshTokensDB.json
+  - persist refresh token by account
+- yargs: verify,renew,noauth,user
+- extract Auth/TokenManagement into npm
+- renovate
 - `google-auth-library` is included in `googleapis`, switch to that
 
 ## OAuth2 Flow

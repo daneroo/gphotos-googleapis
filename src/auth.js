@@ -8,62 +8,113 @@ const enableDestroy = require('server-destroy')
 // const keys = require('../oauth2.keys.json')
 
 module.exports = {
-  getAuthenticatedClient,
-  getNewTokens,
+  usingRefreshToken,
+  validateScope,
+  makeRefreshTokenWithWebFlow,
   // - end of public API
   validateForLocalUse,
-  getTokenFromAuthorizationCode,
+  getTokensFromAuthorizationCode,
   getAuthorizationCode
 }
 
 // might want to verfy requested scopes
-//  return an authenticated OAuth2Client
-async function getAuthenticatedClient (keys, tokens) {
-  const { error } = validateForLocalUse(keys)
-  if (error) {
-    throw error
+// returns an authenticated OAuth2Client
+async function usingRefreshToken (keys, refreshToken) {
+  if (!keys || !keys.web || !keys.web.client_id || !keys.web.client_secret) {
+    throw new Error('Missing at least one required parameter : `{web:{client_id,client_secret}}`')
   }
-  const oAuth2Client = new OAuth2Client(
-    keys.web.client_id,
-    keys.web.client_secret,
-    keys.web.redirect_uris[0]
-  )
 
-  // After acquiring an access_token, you may want to check on the audience, expiration,
-  // or original scopes requested.  You can do that with the `getTokenInfo` method.
+  const oAuth2Client = new OAuth2Client({
+    clientId: keys.web.client_id,
+    clientSecret: keys.web.client_secret,
+    // To test eager refresh add: eagerRefreshThresholdMillis: 3600000 - 10000,
+    forceRefreshOnFailure: true
+  })
+
+  // listener to show token events.
+  oAuth2Client.on('tokens', (t) => {
+    // console.log('** usingRefreshToken ** tokens', t)
+    const exp = new Date(t.expiry_date)
+    const secondsFromNow = ((+exp - new Date()) / 1000).toFixed(1)
+    console.debug(`** usingRefreshToken access expires in ${secondsFromNow}s (${exp})`)
+  })
+
+  const { tokens } = await oAuth2Client.refreshToken(refreshToken)
+  // The returned tokens object does not include the passed in refreshToken,
+  // We add it back so that the client is able to refresh the access tokens on failure or eager refresh
+  tokens.refresh_token = refreshToken
   oAuth2Client.setCredentials(tokens)
 
-  // Does this validation belong here?
-  const tokenInfo = await oAuth2Client.getTokenInfo(
-    oAuth2Client.credentials.access_token
-  )
-  return { oAuth2Client, tokenInfo }
+  // const tokenInfo = await oAuth2Client.getTokenInfo(oAuth2Client.credentials.access_token)
+  // console.debug({ tokenInfo })
+
+  return oAuth2Client
+}
+
+async function validateScope (oAuth2Client, desiredScopes) {
+  const { scopes: actualScopes } = await oAuth2Client.getTokenInfo(oAuth2Client.credentials.access_token)
+
+  // console.debug('Verifying requested scopes', { desiredScopes, actualScopes })
+  let allOk = true
+  for (const scope of desiredScopes) {
+    const ok = actualScopes.indexOf(scope) >= 0
+    if (!ok) {
+      console.error(`Requested scope not found: (${scope})`)
+      allOk = false
+    }
+  }
+
+  // Warning for extraneous (unrequested) scopes
+  for (const scope of actualScopes) {
+    const notNeeded = desiredScopes.indexOf(scope) < 0
+    if (notNeeded) {
+      console.warn(`Warning scope is present but not needed: (${scope})`)
+    }
+  }
+
+  return allOk
 }
 
 // This triggers a new web flow, opening op a browser window
-// returns { tokens, tokenInfo }
-async function getNewTokens (keys, scope) {
-  const { callbackPath, localPort, error } = validateForLocalUse(keys)
+// returns {  id, name, refreshToken, scopes }
+async function makeRefreshTokenWithWebFlow (keys, desiredScopes) {
+  const { redirectUri, callbackPath, localPort, error } = validateForLocalUse(keys)
   if (error) {
     throw error
   }
-  const oAuth2Client = new OAuth2Client(
-    keys.web.client_id,
-    keys.web.client_secret,
-    keys.web.redirect_uris[0]
-  )
+  const oAuth2Client = new OAuth2Client({
+    clientId: keys.web.client_id,
+    clientSecret: keys.web.client_secret,
+    redirectUri: redirectUri,
+    forceRefreshOnFailure: true
+  })
 
-  const code = await getAuthorizationCode(oAuth2Client, callbackPath, localPort, scope)
+  const code = await getAuthorizationCode(oAuth2Client, callbackPath, localPort, desiredScopes)
   // console.debug(`Got the authorization code: ${code}`)
-  const tokens = await getTokenFromAuthorizationCode(oAuth2Client, code)
+  const { tokens } = await oAuth2Client.getToken(code)
   // console.debug('Got new tokens', { tokens })
-
   oAuth2Client.setCredentials(tokens)
-  const tokenInfo = await oAuth2Client.getTokenInfo(
+
+  // rename refresh_token: refreshToken, so we can return it in camelCase
+  const { refresh_token: refreshToken } = tokens
+
+  // I can get the id (renamed from sub) and scopes from the tokenInfo
+  const { sub: id, scopes } = await oAuth2Client.getTokenInfo(
     oAuth2Client.credentials.access_token
   )
 
-  return { tokens, tokenInfo }
+  // Make sure we got all the scopes we wanted
+  const scopesOk = await validateScope(oAuth2Client, desiredScopes)
+  if (!scopesOk) {
+    throw new Error('Missing authorization scopes')
+  }
+
+  // The name (and also sub/id which is tkenInfo) can be obtained from OAuth2 userinfo.
+  // this requires scope: 'https://www.googleapis.com/auth/userinfo.profile'
+  // We can also fetch the similar from 'https://people.googleapis.com/v1/people/me?personFields=names';
+  const { data: { name } } = await oAuth2Client.request({ url: 'https://www.googleapis.com/oauth2/v3/userinfo' })
+
+  return { id, name, refreshToken, scopes }
 }
 
 // validate that the keys object is valid for a local (127.0.0.1) OAuth2 flow.
@@ -89,7 +140,7 @@ async function getNewTokens (keys, scope) {
 function validateForLocalUse (keys) {
   if (!keys || !keys.web || !keys.web.client_id || !keys.web.client_secret ||
      !keys.web.redirect_uris) {
-    return { error: 'Missing at least one required parameter : `{web:{client_id,client_secret,redirect_uris:[]`' }
+    return { error: 'Missing at least one required parameter : `{web:{client_id,client_secret,redirect_uris:[]}}`' }
   }
   if (!Array.isArray(keys.web.redirect_uris)) {
     return { error: '`keys.web.redirect_uris` is not an Array' }
@@ -101,25 +152,28 @@ function validateForLocalUse (keys) {
   if (localUris.length < 1) {
     return { error: '`keys.web.redirect_uris[]` should have at least 1 entry with `http://127.0.0.1` prefix' }
   }
+  // Pick the first local redirect URI and return it along with the parsed path and port parts
   try {
-    const u = new url.URL(localUris[0])
-    const port = Number(u.port)
-    if (port === 0) {
-      throw new Error('http port should be explicit for local url')
+    const redirectUri = localUris[0]
+    const u = new url.URL(redirectUri)
+    const callbackPath = u.pathname
+    const localPort = Number(u.port)
+    if (localPort === 0) {
+      throw new Error('http port should be explicit for local redirect URI')
     }
     return {
-      callbackPath: u.pathname,
-      localPort: port
+      redirectUri,
+      callbackPath,
+      localPort
     }
   } catch (err) {
     return { error: '`keys.web.redirect_uris[]` ' + `error:${err}` }
   }
 }
 
-// Create a new OAuth2Client, and go through the OAuth2 content workflow.
-async function getTokenFromAuthorizationCode (oAuth2Client, code) {
+// Returns tokens for Code
+async function getTokensFromAuthorizationCode (oAuth2Client, code) {
   const r = await oAuth2Client.getToken(code)
-  // Make sure to set the credentials on the OAuth2 client.
   // console.debug({ r })
   return (r.tokens)
 }
