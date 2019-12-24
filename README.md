@@ -25,7 +25,7 @@ This is meant to get local credententials, for local development (i.e. the OAuth
   - Create OAuth client ID from the dropdown and give it a  name: `OAuth CLient` for example
     - Application type: Web Application, and give it a name
     - Set the authorized JavaScript origin to <http://127.0.0.1>
-    - Set authorized redirect URL to http://127.0.0.1:8080/auth/google/callback
+    - Set authorized redirect URL to <http://127.0.0.1:8080/auth/google/callback>
 
 ## References
 
