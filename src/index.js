@@ -32,10 +32,12 @@ async function listItems (oAuth2Client) {
 
   const url = 'https://photoslibrary.googleapis.com/v1/mediaItems'
   let total = 0
+  let totalPages = 0
   while (true) {
     const res = await oAuth2Client.request({ url, params })
     const { mediaItems, nextPageToken } = res.data
     total += mediaItems.length
+    totalPages += 1
     console.log(`.. added ${mediaItems.length} total:${total} more:${!!nextPageToken}`)
     // console.log({ nextPageToken })
     if (nextPageToken) {
@@ -44,4 +46,5 @@ async function listItems (oAuth2Client) {
       break
     }
   }
+  console.log(`Listed ${total} itmes in ${totalPages} pages`)
 }

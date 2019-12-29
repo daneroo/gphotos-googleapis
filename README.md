@@ -4,6 +4,7 @@
 
 ## TODO
 
+- `npx @daneroo/get-me-a-googleapi-refresh-token`
 - Implement refreshTokensDB.json
   - persist refresh token by account
 - yargs: verify
