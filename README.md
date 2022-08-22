@@ -2,6 +2,18 @@
 
 - Use a refresh token and list all photos
 
+## Operation
+
+Still manual:
+
+```bash
+cd ../get-me-a-googleapi-refresh-token/
+node src/index.js generate # and put the output json into a `tokens-xxx.json` file in this directory
+# edit the token file name in index.js
+# in this directory
+npm start # which will list all the photos (media items) for that account.
+```
+
 ## TODO
 
 - `npx @daneroo/get-me-a-googleapi-refresh-token`
