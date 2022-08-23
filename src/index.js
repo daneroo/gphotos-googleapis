@@ -50,15 +50,18 @@ async function listItems (oAuth2Client) {
     total += mediaItems.length
     totalPages += 1
     console.log(
-      `.. added ${mediaItems.length} total:${total} more:${!!nextPageToken}`
+      `- p.${totalPages} ${
+        mediaItems.length
+      } total:${total} more:${!!nextPageToken}`
     )
-    // console.log({ nextPageToken })
+    firstItem = mediaItems[0]
+    console.log('  ', firstItem.filename, firstItem.baseUrl.slice(0, 64), '...')
     if (nextPageToken) {
       params.pageToken = nextPageToken
     } else {
       break
     }
   }
-  console.log(`Listed ${total} itmes in ${totalPages} pages`)
-  console.log(`first item:`, JSON.stringify(mediaItems[0], null, 2))
+  console.log(`Listed ${total} items in ${totalPages} pages`)
+  console.log(`just need to download them now... (and incomplete exif data)`)
 }
